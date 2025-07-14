@@ -58,19 +58,18 @@ async function uploadFile() {
 </script>
 
 <template>
-  <div class="card shadow-sm">
-    <div class="card-body p-4">
-      <h5 class="card-title mb-3">上傳 PDF 題庫</h5>
-      <div class="input-group">
-        <input type="file" class="form-control" @change="handleFileChange" accept=".pdf" :disabled="isLoading">
-        <button class="btn btn-primary px-4" @click="uploadFile" :disabled="isLoading">
-          <span v-if="isLoading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-          {{ isLoading ? '處理中...' : '開始測驗' }}
-        </button>
-      </div>
-      <p v-if="message && message.startsWith('錯誤')" class="alert alert-danger mt-3 py-2">
+  <div class="w-100">
+    <div class="input-group input-group-lg">
+      <input type="file" class="form-control" @change="handleFileChange" accept=".pdf" :disabled="isLoading">
+      <button class="btn btn-primary px-4 fw-bold" @click="uploadFile" :disabled="isLoading || !selectedFile">
+        <span v-if="isLoading" class="spinner-border spinner-border-sm me-2" role="status"></span>
+        {{ isLoading ? '處理中...' : '開始測驗' }}
+      </button>
+    </div>
+    <div v-if="message" class="mt-3">
+      <div class="alert py-2 text-center" :class="message.startsWith('錯誤') ? 'alert-danger' : 'alert-info'">
         {{ message }}
-      </p>
+      </div>
     </div>
   </div>
 </template>

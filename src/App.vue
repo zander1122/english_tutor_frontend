@@ -1,24 +1,29 @@
 <script setup>
-// 作為應用的最外層容器，我們只需要從 vue-router 引入 RouterView
-import { RouterView } from 'vue-router'
+import { RouterView, RouterLink } from 'vue-router'
 </script>
-
 <template>
-  <!-- 
-    這個 <RouterView /> 元件是一個神奇的佔位符。
-    Vue Router 會根據您瀏覽器當前的 URL：
-    - 如果 URL 是 '/'，就在這裡顯示 HomeView.vue 的內容。
-    - 如果 URL 是 '/quiz?ids=...'，就在這裡顯示 QuizView.vue 的內容。
-  -->
-  <RouterView />
-</template>
+  <div class="d-flex flex-column min-vh-100 bg-body-tertiary">
+    <!-- 導覽列 -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
+      <div class="container py-2">
+        <RouterLink class="navbar-brand d-flex align-items-center" to="/">
+          <i class="bi bi-robot fs-3 text-primary me-2"></i>
+          <span class="fs-4 fw-bolder">AI Quiz Platform</span>
+        </RouterLink>
+      </div>
+    </nav>
 
-<style>
-/* 
-  我們可以在這裡放置整個應用程式都通用的全域樣式。
-  例如，設定一個統一的背景顏色。
-*/
-body {
-  background-color: #f8f9fa; /* 一個類似 Bootstrap bg-light 的淺灰色，讓背景不那麼刺眼 */
-}
-</style>
+    <!-- 主內容區域 -->
+    <main class="flex-grow-1">
+      <RouterView />
+    </main>
+
+    <!-- 頁腳 -->
+    <footer class="py-4 bg-dark text-white">
+      <div class="container text-center">
+        <p class="mb-0">© {{ new Date().getFullYear() }} AI Quiz Platform. All Rights Reserved.</p>
+        <p class="mb-0 small text-white-50">Powered by FastAPI & Vue.js</p>
+      </div>
+    </footer>
+  </div>
+</template>

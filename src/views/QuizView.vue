@@ -1,94 +1,66 @@
 <script setup>
+// Script setup 區塊的邏輯完全保持不變，因為它是成功的基礎
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
 
-// 從 props 接收由路由傳入的 quizIds 陣列
 const props = defineProps({
   quizIds: { type: Array, required: true }
 });
 
 const router = useRouter();
-
-// --- 狀態管理：每個狀態都是獨立的 ---
-const quizzes = ref([]); // 存放所有從後端獲取的原始題目資料
+const quizzes = ref([]);
 const score = ref(0);
-
-// --- 流程控制 ---
 const isLoading = ref(true);
-const isFinished = ref(false); // 用於切換答題頁面和結果頁面
+const isFinished = ref(false);
 const error = ref(null);
 
-// --- 生命週期鉤子：元件掛載時，一次性獲取所有題目資料 ---
 onMounted(async () => {
-  // 檢查是否有有效的 ID 傳入
   if (!props.quizIds || props.quizIds.length === 0) {
     error.value = "錯誤：沒有提供有效的測驗題目ID。";
     isLoading.value = false;
     return;
   }
-
   try {
     isLoading.value = true;
-    // 使用批次 API 一次性獲取所有題目，效率最高
     const response = await axios.post('/api/quizzes/batch', { ids: props.quizIds });
-    
-    // 核心邏輯：在獲取資料後，為每一題動態新增一個 userAnswer 屬性
-    // 這樣每一題的作答狀態都封裝在它自己的物件裡，完全獨立
     quizzes.value = response.data.map(quiz => ({
-      ...quiz, // 保留所有從後端來的原始資料 (id, prompt, options, answer...)
-      userAnswer: '' // 為每一題新增一個空的、獨立的 userAnswer 屬性
+      ...quiz,
+      userAnswer: ''
     }));
-
-    // 如果後端返回空陣列，則拋出錯誤
     if (quizzes.value.length === 0) {
       throw new Error("所有題目 ID 均無效或未在資料庫中找到。");
     }
   } catch (err) {
-    // 捕獲所有可能的錯誤
     error.value = `載入測驗題目時出錯：${err.response?.data?.detail || err.message}`;
-    console.error("載入題目時發生錯誤:", err);
   } finally {
-    // 無論成功或失敗，都結束載入狀態
     isLoading.value = false;
   }
 });
 
-// --- Methods ---
-
-// 手動處理答案變更，取代 v-model 的複雜性
 function selectAnswer(quiz, selectedOption) {
-  // 直接修改對應 quiz 物件的 userAnswer 屬性
   quiz.userAnswer = selectedOption;
 }
 
-// 提交整個測驗
 function submitQuiz() {
   const unansweredCount = quizzes.value.filter(q => !q.userAnswer).length;
   if (unansweredCount > 0) {
     if (!confirm(`您還有 ${unansweredCount} 題未作答，確定要提交嗎？`)) {
-      return; // 如果使用者取消，則停止提交
+      return;
     }
   }
-
-  // 計算分數
   let finalScore = 0;
   quizzes.value.forEach(quiz => {
-    // 在提交時，為每一題新增 isSubmitted 狀態，用於結果顯示
     quiz.isSubmitted = true;
     if (quiz.userAnswer === quiz.answer) {
       finalScore++;
     }
   });
   score.value = finalScore;
-
-  // 切換到結果顯示模式
   isFinished.value = true;
-  // 自動捲動到頁面頂部，方便使用者看到分數
   window.scrollTo(0, 0);
 }
 
-// 返回首頁
 function restartQuiz() {
   router.push('/');
 }
@@ -96,82 +68,94 @@ function restartQuiz() {
 
 <template>
   <div class="container py-5">
-    <!-- 狀態一：正在載入 -->
-    <div v-if="isLoading" class="text-center p-5">
-      <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
-      <p class="mt-3 fs-5">正在從資料庫載入測驗題...</p>
-    </div>
-    
-    <!-- 狀態二：發生錯誤 -->
+    <div v-if="isLoading">...</div>
     <div v-else-if="error" class="alert alert-danger">{{ error }}</div>
     
-    <!-- 狀態三：答題中 (一次性顯示所有題目) -->
-    <div v-else-if="!isFinished">
-      <h2 class="mb-4 text-center">線上測驗 (共 {{ quizzes.length }} 題)</h2>
-      <!-- 使用 v-for 一次性渲染所有題目卡片 -->
-      <div v-for="(quiz, index) in quizzes" :key="quiz.id" class="card shadow-sm mb-4">
-        <div class="card-header">
-          <strong>第 {{ index + 1 }} 題</strong>
-        </div>
-        <div class="card-body">
-          <p class="fs-5 mb-3">{{ quiz.prompt }}</p>
-          <div v-if="quiz.type === 'vocabulary'" class="d-grid gap-2">
-            <!-- 每個選項都是一個 button，通過 @click 手動更新狀態 -->
+    <!-- 答題中 -->
+    <div v-else-if="!isFinished" class="mx-auto" style="max-width: 800px;">
+      <div class="text-center mb-5">
+        <h2 class="fw-bolder">線上測驗</h2>
+        <p class="fs-5 text-muted">共 {{ quizzes.length }} 道題目</p>
+      </div>
+      
+      <div v-for="(quiz, index) in quizzes" :key="quiz.id" class="card shadow-sm mb-4 border-0">
+        <div class="card-body p-4">
+          <p class="fs-5 mb-0"><span class="badge bg-primary rounded-pill me-2">{{ index + 1 }}</span> {{ quiz.prompt }}</p>
+          <hr class="my-3">
+          <div v-if="quiz.type === 'vocabulary'" class="vstack gap-2">
             <button
-              v-for="option in quiz.options"
-              :key="option"
-              type="button"
-              class="btn w-100 text-start p-3"
-              :class="{
-                'btn-primary': quiz.userAnswer === option, // 被選中的選項顯示為實心藍色
-                'btn-outline-primary': quiz.userAnswer !== option // 未選中的是藍色外框
-              }"
-              @click="selectAnswer(quiz, option)"
-            >
+              v-for="option in quiz.options" :key="option" type="button"
+              class="btn btn-outline-secondary btn-lg w-100 text-start transition-all"
+              :class="{ 'active text-white': quiz.userAnswer === option }"
+              @click="selectAnswer(quiz, option)">
               {{ option }}
             </button>
           </div>
         </div>
       </div>
-      <!-- 提交按鈕放在所有題目下方 -->
-      <div class="d-grid mt-4">
-        <button @click="submitQuiz" class="btn btn-success btn-lg">全部提交，查看結果</button>
+      <div class="d-grid mt-5">
+        <button @click="submitQuiz" class="btn btn-primary btn-lg py-3 fs-4 fw-bold shadow">提交所有答案</button>
       </div>
     </div>
 
-    <!-- 狀態四：測驗結束 - 結果回顧頁面 -->
-    <div v-else-if="isFinished">
-        <div class="text-center p-4 mb-4 bg-white rounded-3 shadow-sm">
-            <h2 class="display-4 fw-bold">測驗完成！</h2>
-            <p class="fs-3 my-2">
-              您的最終成績是：
-              <span class="text-primary fw-bold">{{ score }} / {{ quizzes.length }}</span>
+    <!-- 測驗結束 -->
+    <div v-else-if="isFinished" class="mx-auto" style="max-width: 900px;">
+        <div class="text-center p-5 mb-5 bg-white rounded-4 shadow">
+            <i class="bi bi-award-fill text-warning" style="font-size: 5rem;"></i>
+            <h2 class="display-3 fw-bolder text-body-emphasis mt-3">測驗完成！</h2>
+            <p class="fs-2 my-3">
+              您的成績: <span class="text-primary fw-bold">{{ score }} / {{ quizzes.length }}</span>
             </p>
         </div>
         
-        <h4 class="mb-3">答題詳情回顧：</h4>
-        <div class="d-grid gap-4">
-          <div v-for="quiz in quizzes" :key="`result-${quiz.id}`" class="card">
-            <div class="card-body">
-              <p class="fw-bold mb-2">{{ quiz.prompt }}</p>
-              <!-- 根據 isSubmitted 和答案來決定顯示樣式 -->
-              <div v-for="option in quiz.options" :key="option" 
-                   class="p-2 rounded mb-1"
-                   :class="{
-                     'bg-success text-white': option === quiz.answer, // 正確答案永遠是綠底白字
-                     'bg-danger text-white': option !== quiz.answer && option === quiz.userAnswer, // 您選的錯誤答案是紅底白字
-                     'bg-light text-muted': option !== quiz.answer && option !== quiz.userAnswer // 其他未選的錯誤選項是淺灰底
-                   }">
-                {{ option }}
-                <span v-if="option === quiz.userAnswer" class="fw-bold">   (您的答案)</span>
+        <h4 class="mb-3 text-center fw-bold">答題詳情回顧</h4>
+        <div class="accordion" id="quizResultAccordion">
+          <div v-for="(quiz, index) in quizzes" :key="`result-${quiz.id}`" class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed fs-5" type="button" data-bs-toggle="collapse" :data-bs-target="`#collapse-${quiz.id}`">
+                <span class="fw-bold me-3">第 {{ index + 1 }} 題</span>
+                <span class="text-truncate">{{ quiz.prompt }}</span>
+                <span class="ms-auto">
+                  <i v-if="quiz.userAnswer === quiz.answer" class="bi bi-check-circle-fill text-success"></i>
+                  <i v-else class="bi bi-x-circle-fill text-danger"></i>
+                </span>
+              </button>
+            </h2>
+            <div :id="`collapse-${quiz.id}`" class="accordion-collapse collapse" data-bs-parent="#quizResultAccordion">
+              <div class="accordion-body">
+                <ul class="list-group list-group-flush">
+                  <li v-for="option in quiz.options" :key="option" 
+                      class="list-group-item d-flex justify-content-between align-items-center p-3 fs-5">
+                    <span>{{ option }}</span>
+                    <div>
+                      <span v-if="option === quiz.answer" class="badge text-bg-success">正確答案</span>
+                      <span v-if="option === quiz.userAnswer && option !== quiz.answer" class="badge text-bg-danger">您的選擇</span>
+                    </div>
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
         </div>
-
         <div class="text-center mt-5">
-             <button @click="restartQuiz" class="btn btn-lg btn-primary">返回首頁，重新上傳</button>
+          <button @click="restartQuiz" class="btn btn-lg btn-outline-primary"><i class="bi bi-arrow-repeat me-2"></i>回到首頁</button>
         </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 讓按鈕的 class 變化有過渡動畫 */
+.btn {
+  transition: all 0.2s ease-in-out;
+}
+.text-truncate {
+  max-width: 85%;
+  display: inline-block;
+}
+/* 美化手風琴的樣式 */
+.accordion-button:not(.collapsed) {
+  background-color: #e9ecef;
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,.125);
+}
+</style>
